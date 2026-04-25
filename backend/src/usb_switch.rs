@@ -69,7 +69,7 @@ impl UsbModeConfig {
                 pamu3_protocol: Some("NCM"),
                 functions: "ncm.gs0",
                 bcd_device: "0x0404",
-                usb_share_enable: false,
+                usb_share_enable: true,
             }),
             // ECM 模式
             2 => Some(Self {
