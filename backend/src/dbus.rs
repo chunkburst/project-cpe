@@ -731,42 +731,48 @@ pub async fn data_connection_watchdog(conn: std::sync::Arc<Connection>, interval
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
         
-        // 1. 检查并清空 iptables 规则
-        match get_iptables_rule_count().await {
-            Ok(count) => {
-                if count.has_rules() {
-                    // 有规则，执行清空
-                    if let Err(e) = flush_iptables().await {
-                        warn!(error = %e, "Watchdog: iptables flush failed");
-                    } else {
-                        if !last_iptables_action {
-                            // 只在首次清空时打印日志
-                            info!(
-                                total = count.total(),
-                                ipv4 = count.ipv4_rules,
-                                ipv6 = count.ipv6_rules,
-                                "Watchdog: iptables flushed"
-                            );
+        // 检查 D-Bus 连接是否仍然有效
+        if !conn.is_closed() {
+            // 1. 检查并清空 iptables 规则
+            match get_iptables_rule_count().await {
+                Ok(count) => {
+                    if count.has_rules() {
+                        // 有规则，执行清空
+                        if let Err(e) = flush_iptables().await {
+                            warn!(error = %e, "Watchdog: iptables flush failed");
+                        } else {
+                            if !last_iptables_action {
+                                // 只在首次清空时打印日志
+                                info!(
+                                    total = count.total(),
+                                    ipv4 = count.ipv4_rules,
+                                    ipv6 = count.ipv6_rules,
+                                    "Watchdog: iptables flushed"
+                                );
+                            }
+                            last_iptables_action = true;
                         }
-                        last_iptables_action = true;
+                    } else {
+                        // 无规则，重置标志
+                        last_iptables_action = false;
                     }
-                } else {
-                    // 无规则，重置标志
-                    last_iptables_action = false;
+                }
+                Err(e) => {
+                    warn!(error = %e, "Watchdog: iptables check failed");
                 }
             }
-            Err(e) => {
-                warn!(error = %e, "Watchdog: iptables check failed");
+            
+            // 2. 检查并恢复数据连接
+            let result = check_and_restore_data_connection(&conn).await;
+            
+            // 只在状态变化时打印日志，避免刷屏
+            if result != last_data_log {
+                info!(status = %result, "Watchdog: data connection");
+                last_data_log = result;
             }
-        }
-        
-        // 2. 检查并恢复数据连接
-        let result = check_and_restore_data_connection(&conn).await;
-        
-        // 只在状态变化时打印日志，避免刷屏
-        if result != last_data_log {
-            info!(status = %result, "Watchdog: data connection");
-            last_data_log = result;
+        } else {
+            warn!("Watchdog: D-Bus connection closed, waiting for reconnection...");
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     }
 }

@@ -15,26 +15,32 @@
 
 use std::future::Future;
 use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 
 /// Global mutex to serialize DBus/AT operations
 static DBUS_LOCK: Mutex<()> = Mutex::const_new(());
+
+/// 默认 AT 指令超时时间
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Execute a future while holding the global DBus lock
 ///
 /// This ensures that only one DBus/AT operation can be in progress at a time,
 /// preventing "Operation already in progress" errors from ofono.
-///
-/// # Example
-/// ```rust
-/// let result = with_serial(async {
-///     send_at_command(&conn, "AT+CGSN").await
-/// }).await;
-/// ```
-pub async fn with_serial<T, F>(f: F) -> T
+pub async fn with_serial<T, F>(f: F) -> zbus::Result<T>
 where
-    F: Future<Output = T>,
+    F: Future<Output = zbus::Result<T>>,
 {
-    let _guard = DBUS_LOCK.lock().await;
-    f.await
+    // 获取锁，带有超时
+    let _guard = match timeout(Duration::from_secs(5), DBUS_LOCK.lock()).await {
+        Ok(g) => g,
+        Err(_) => return Err(zbus::Error::Failure("Failed to acquire DBUS_LOCK: timeout".to_string())),
+    };
+
+    // 执行业务逻辑，带有整体超时
+    match timeout(DEFAULT_TIMEOUT, f).await {
+        Ok(result) => result,
+        Err(_) => Err(zbus::Error::Failure("DBus operation timed out".to_string())),
+    }
 }
 

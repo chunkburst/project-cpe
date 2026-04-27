@@ -21,6 +21,7 @@ use std::sync::Arc;
 use zbus::{Connection, MessageStream, Proxy};
 use zbus::zvariant::OwnedValue;
 use futures_util::StreamExt;
+use tracing::{info, warn, error};
 
 /// PDU decode result
 #[allow(dead_code)]
@@ -224,8 +225,18 @@ pub async fn start_sms_listener(conn: Connection, db: Arc<Database>, webhook: Ar
     loop {
         let msg = match stream.next().await {
             Some(Ok(msg)) => msg,
-            Some(Err(_)) => continue,
-            None => continue,
+            Some(Err(e)) => {
+                tracing::error!("SMS stream error: {}, restarting stream", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                stream = MessageStream::from(&conn);
+                continue;
+            }
+            None => {
+                tracing::warn!("SMS stream ended, restarting stream");
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                stream = MessageStream::from(&conn);
+                continue;
+            }
         };
         
         // Check if it's a signal message
@@ -298,8 +309,18 @@ pub async fn start_call_listener(conn: Connection, db: Arc<Database>, webhook: A
     loop {
         let msg = match stream.next().await {
             Some(Ok(msg)) => msg,
-            Some(Err(_)) => continue,
-            None => continue,
+            Some(Err(e)) => {
+                tracing::error!("Call stream error: {}, restarting stream", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                stream = MessageStream::from(&conn);
+                continue;
+            }
+            None => {
+                tracing::warn!("Call stream ended, restarting stream");
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                stream = MessageStream::from(&conn);
+                continue;
+            }
         };
         
         // Process call-related signals
@@ -335,6 +356,14 @@ pub async fn start_call_listener(conn: Connection, db: Arc<Database>, webhook: A
                         let answered = state == "active";
                         if let Ok(db_id) = db.insert_call(direction, &phone_number, answered) {
                             let mut active_calls = ACTIVE_CALLS.lock().unwrap();
+                            
+                            // 防止内存泄漏：如果超过 100 个活动通话，删除最旧的一个
+                            if active_calls.len() >= 100 {
+                                if let Some(oldest_key) = active_calls.keys().next().cloned() {
+                                    active_calls.remove(&oldest_key);
+                                }
+                            }
+                            
                             active_calls.insert(path_str, ActiveCall {
                                 db_id,
                                 phone_number,

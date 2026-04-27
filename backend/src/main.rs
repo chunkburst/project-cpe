@@ -177,21 +177,21 @@ async fn main() -> Result<()> {
     
     // 启动 SMS 监听线程
     {
-        let conn_clone = Connection::system().await?;
+        let conn_clone = Arc::clone(&dbus_conn);
         let db_clone = Arc::clone(&app_db);
         let webhook_clone = Arc::clone(&webhook_sender);
         tokio::spawn(async move {
-            let _ = sms_listener::start_sms_listener(conn_clone, db_clone, webhook_clone).await;
+            let _ = sms_listener::start_sms_listener((*conn_clone).clone(), db_clone, webhook_clone).await;
         });
     }
     
     // 启动电话监听线程（包括通话记录存储）
     {
-        let conn_clone = Connection::system().await?;
+        let conn_clone = Arc::clone(&dbus_conn);
         let db_clone = Arc::clone(&app_db);
         let webhook_clone = Arc::clone(&webhook_sender);
         tokio::spawn(async move {
-            let _ = sms_listener::start_call_listener(conn_clone, db_clone, webhook_clone).await;
+            let _ = sms_listener::start_call_listener((*conn_clone).clone(), db_clone, webhook_clone).await;
         });
     }
     
