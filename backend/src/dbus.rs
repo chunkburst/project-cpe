@@ -731,10 +731,8 @@ pub async fn data_connection_watchdog(conn: std::sync::Arc<Connection>, interval
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
         
-        // 检查 D-Bus 连接是否仍然有效
-        if !conn.is_closed() {
-            // 1. 检查并清空 iptables 规则
-            match get_iptables_rule_count().await {
+        // 1. 检查并清空 iptables 规则
+        match get_iptables_rule_count().await {
                 Ok(count) => {
                     if count.has_rules() {
                         // 有规则，执行清空

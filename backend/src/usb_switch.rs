@@ -38,7 +38,6 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
-use tracing::{info, warn, error};
 
 /// USB 模式配置
 #[derive(Debug, Clone)]

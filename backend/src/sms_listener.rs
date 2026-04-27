@@ -21,7 +21,6 @@ use std::sync::Arc;
 use zbus::{Connection, MessageStream, Proxy};
 use zbus::zvariant::OwnedValue;
 use futures_util::StreamExt;
-use tracing::{info, warn, error};
 
 /// PDU decode result
 #[allow(dead_code)]
