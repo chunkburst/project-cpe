@@ -175,26 +175,50 @@ async fn main() -> Result<()> {
     // 初始化 Webhook 发送器
     let webhook_sender = Arc::new(WebhookSender::new(Arc::clone(&config_manager)));
     
-    // 启动 SMS 监听线程
+    // 启动 SMS 监听线程（带 panic 恢复）
     {
         let conn_clone = Arc::clone(&dbus_conn);
         let db_clone = Arc::clone(&app_db);
         let webhook_clone = Arc::clone(&webhook_sender);
         tokio::spawn(async move {
-            let _ = sms_listener::start_sms_listener((*conn_clone).clone(), db_clone, webhook_clone).await;
+            loop {
+                let conn = (*conn_clone).clone();
+                let db = Arc::clone(&db_clone);
+                let wh = Arc::clone(&webhook_clone);
+                let handle = tokio::spawn(async move {
+                    let _ = sms_listener::start_sms_listener(conn, db, wh).await;
+                });
+                match handle.await {
+                    Err(e) if e.is_panic() => warn!("SMS listener panicked, restarting in 5s"),
+                    _ => warn!("SMS listener exited, restarting in 5s"),
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
         });
     }
-    
-    // 启动电话监听线程（包括通话记录存储）
+
+    // 启动电话监听线程（带 panic 恢复）
     {
         let conn_clone = Arc::clone(&dbus_conn);
         let db_clone = Arc::clone(&app_db);
         let webhook_clone = Arc::clone(&webhook_sender);
         tokio::spawn(async move {
-            let _ = sms_listener::start_call_listener((*conn_clone).clone(), db_clone, webhook_clone).await;
+            loop {
+                let conn = (*conn_clone).clone();
+                let db = Arc::clone(&db_clone);
+                let wh = Arc::clone(&webhook_clone);
+                let handle = tokio::spawn(async move {
+                    let _ = sms_listener::start_call_listener(conn, db, wh).await;
+                });
+                match handle.await {
+                    Err(e) if e.is_panic() => warn!("Call listener panicked, restarting in 5s"),
+                    _ => warn!("Call listener exited, restarting in 5s"),
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
         });
     }
-    
+
     // 自动初始化数据连接
     {
         let conn_clone = Arc::clone(&dbus_conn);
@@ -205,15 +229,24 @@ async fn main() -> Result<()> {
             tracing::info!(result = %result, "Auto-connect completed");
         });
     }
-    
-    // 启动数据连接 Watchdog（每 15 秒检查一次）
+
+    // 启动数据连接 Watchdog（每 30 秒检查一次，带 panic 恢复）
     {
         let conn_clone = Arc::clone(&dbus_conn);
         tokio::spawn(async move {
-            // 初始延迟 5 秒，等待系统稳定
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-            tracing::info!(interval = 15, "Watchdog started");
-            dbus::data_connection_watchdog(conn_clone, 5).await;
+            // 初始延迟 10 秒，等待系统稳定
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            loop {
+                let conn = Arc::clone(&conn_clone);
+                let handle = tokio::spawn(async move {
+                    dbus::data_connection_watchdog(conn, 30).await;
+                });
+                match handle.await {
+                    Err(e) if e.is_panic() => warn!("Watchdog panicked, restarting in 5s"),
+                    _ => warn!("Watchdog exited, restarting in 5s"),
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
         });
     }
 

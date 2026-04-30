@@ -258,6 +258,7 @@ export default function ConfigurationPage() {
       case 1: return 'CDC-NCM'
       case 2: return 'CDC-ECM'
       case 3: return 'RNDIS'
+      case 4: return 'NCM (No ADB)'
       default: return 'Unknown'
     }
   }
@@ -632,6 +633,18 @@ export default function ConfigurationPage() {
                       <Typography variant="body1">RNDIS</Typography>
                       <Typography variant="caption" color="text.secondary">
                         远程网络驱动接口 - Windows 专用模式
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value={4}
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">NCM (No ADB)</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        纯 NCM 模式 - 无调试接口，更高安全性
                       </Typography>
                     </Box>
                   }

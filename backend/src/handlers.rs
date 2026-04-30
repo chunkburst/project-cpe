@@ -636,6 +636,7 @@ fn get_mode_name(mode: Option<u8>) -> String {
         Some(1) => "CDC-NCM".to_string(),
         Some(2) => "CDC-ECM".to_string(),
         Some(3) => "RNDIS".to_string(),
+        Some(4) => "NCM (No ADB)".to_string(),
         _ => "Unknown".to_string(),
     }
 }
@@ -710,15 +711,15 @@ pub async fn get_usb_mode() -> impl IntoResponse {
 /// ```
 pub async fn set_usb_mode(Json(payload): Json<SetUsbModeRequest>) -> impl IntoResponse {
     // 验证模式值
-    if !(1..=3).contains(&payload.mode) {
+    if !(1..=4).contains(&payload.mode) {
         return (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<()>::error(
-                "Invalid mode: must be 1 (CDC-NCM), 2 (CDC-ECM), or 3 (RNDIS)",
+                "Invalid mode: must be 1 (CDC-NCM), 2 (CDC-ECM), 3 (RNDIS), or 4 (NCM no ADB)",
             )),
         );
     }
-    
+
     // 写入配置文件
     match usb_switch::set_usb_mode_config(payload.mode, payload.permanent) {
         Ok(_) => {
@@ -762,19 +763,20 @@ pub async fn set_usb_mode(Json(payload): Json<SetUsbModeRequest>) -> impl IntoRe
 /// - 建议使用模式 1 (NCM) 以获得最佳跨平台兼容性
 pub async fn set_usb_mode_advanced(Json(payload): Json<SetUsbModeRequest>) -> impl IntoResponse {
     // 验证模式值
-    if !(1..=3).contains(&payload.mode) {
+    if !(1..=4).contains(&payload.mode) {
         return (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<()>::error(
-                "Invalid mode: must be 1 (CDC-NCM), 2 (CDC-ECM), or 3 (RNDIS)",
+                "Invalid mode: must be 1 (CDC-NCM), 2 (CDC-ECM), 3 (RNDIS), or 4 (NCM no ADB)",
             )),
         );
     }
-    
-    // 执行热切换
-    match usb_switch::switch_usb_mode_advanced(payload.mode) {
-        Ok(_) => {
-            let mode_name = get_mode_name(Some(payload.mode));
+
+    // 在后台线程执行热切换（避免阻塞 tokio worker）
+    let mode = payload.mode;
+    match tokio::task::spawn_blocking(move || usb_switch::switch_usb_mode_advanced(mode)).await {
+        Ok(Ok(_)) => {
+            let mode_name = get_mode_name(Some(mode));
             (
                 StatusCode::OK,
                 Json(ApiResponse::success_with_message(
@@ -783,9 +785,13 @@ pub async fn set_usb_mode_advanced(Json(payload): Json<SetUsbModeRequest>) -> im
                 )),
             )
         }
-        Err(e) => (
+        Ok(Err(e)) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::<()>::error(format!("USB 模式切换失败: {}", e))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(format!("USB 模式切换任务失败: {}", e))),
         ),
     }
 }

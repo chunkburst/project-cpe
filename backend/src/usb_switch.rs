@@ -138,9 +138,6 @@ const SFP_TETHER_SCHEME_PATH: &str = "/proc/net/sfp/tether_scheme";
 /// slog_bridge 日志传输路径
 const SLOG_TRANSPORT_PATH: &str = "/sys/module/slog_bridge/parameters/log_transport";
 
-/// AT 指令设备路径
-const AT_DEVICE_PATH: &str = "/dev/stty_lte30";
-
 /// 默认 USB 网络接口 IP 地址
 const USB_INTERFACE_IP: &str = "192.168.66.1";
 const USB_INTERFACE_MAC: &str = "CC:E8:AC:C0:00:00";
@@ -158,38 +155,6 @@ fn write_to_file(path: &str, content: &str) -> io::Result<()> {
     file.flush()?;
     Ok(())
 }
-
-/// 发送 AT 指令到 modem（直接写入设备）
-/// 
-/// 用于发送 USB 模式相关的 AT 指令，如 AT+SPASENGMD
-fn send_at_command_direct(cmd: &str) -> io::Result<()> {
-    if !Path::new(AT_DEVICE_PATH).exists() {
-        // AT 设备不存在，静默跳过
-        return Ok(());
-    }
-    
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .open(AT_DEVICE_PATH)?;
-    
-    // 添加换行符
-    let cmd_with_newline = format!("{}\r\n", cmd);
-    file.write_all(cmd_with_newline.as_bytes())?;
-    file.flush()?;
-    Ok(())
-}
-
-/// 设置 USB 共享模式
-/// 
-/// 通过 AT+SPASENGMD 指令控制 USB 共享：
-/// - enable=true: RNDIS 模式需要启用
-/// - enable=false: ECM/NCM/MBIM 模式禁用
-fn set_usb_share_mode(enable: bool) -> io::Result<()> {
-    let value = if enable { "1" } else { "0" };
-    let cmd = format!("AT+SPASENGMD=\"#dsm_usb_share_enable\",{}", value);
-    send_at_command_direct(&cmd)
-}
-
 
 /// 设置 slog_bridge 日志传输
 /// 
@@ -432,8 +397,8 @@ pub fn switch_usb_mode_advanced(mode: u8) -> Result<(), String> {
         let _ = write_to_file(PAMU3_MAX_DL_PKTS_PATH, "7");
     }
     
-    // 6. 发送 AT 指令控制 USB 共享模式
-    let _ = set_usb_share_mode(config.usb_share_enable);
+    // 6. USB 共享模式由 connman gadget tethering 管理
+    // 不直接发送 AT 指令到串口，避免与 ofono 冲突
     
     // 7. 确保 configfs 已挂载
     let _ = Command::new("mount")
@@ -753,13 +718,13 @@ pub fn get_usb_mode_config() -> Result<UsbModeConfigResult, String> {
     let permanent_mode = fs::read_to_string(USB_MODE_PERMANENT_FILE)
         .ok()
         .and_then(|s| s.trim().parse::<u8>().ok())
-        .filter(|&m| (1..=3).contains(&m));
-    
+        .filter(|&m| (1..=4).contains(&m));
+
     // 3. 读取临时配置文件
     let temporary_mode = fs::read_to_string(USB_MODE_TEMPORARY_FILE)
         .ok()
         .and_then(|s| s.trim().parse::<u8>().ok())
-        .filter(|&m| (1..=3).contains(&m));
+        .filter(|&m| (1..=4).contains(&m));
     
     Ok(UsbModeConfigResult {
         current_mode: current_hardware_mode,

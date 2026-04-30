@@ -31,10 +31,10 @@ pub async fn with_serial<T, F>(f: F) -> zbus::Result<T>
 where
     F: Future<Output = zbus::Result<T>>,
 {
-    // 获取锁，带有超时
-    let _guard = match timeout(Duration::from_secs(5), DBUS_LOCK.lock()).await {
+    // 获取锁，带有超时（15秒，足够大多数操作完成）
+    let _guard = match timeout(Duration::from_secs(15), DBUS_LOCK.lock()).await {
         Ok(g) => g,
-        Err(_) => return Err(zbus::Error::Failure("Failed to acquire DBUS_LOCK: timeout".to_string())),
+        Err(_) => return Err(zbus::Error::Failure("Failed to acquire DBUS_LOCK: timeout after 15s - another operation may be in progress".to_string())),
     };
 
     // 执行业务逻辑，带有整体超时

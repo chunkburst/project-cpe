@@ -168,38 +168,40 @@ pub async fn get_serving_cell_info(conn: &Connection) -> zbus::Result<ServingCel
 /// # Returns
 /// context 路径字符串
 pub async fn find_internet_context(conn: &Connection) -> zbus::Result<String> {
-    let proxy = Proxy::new(conn, "org.ofono", "/ril_0", "org.ofono.ConnectionManager").await?;
-    let contexts: Vec<(zbus::zvariant::OwnedObjectPath, HashMap<String, OwnedValue>)> = 
-        proxy.call("GetContexts", &()).await?;
-    
-    let mut first_internet_context: Option<String> = None;
-    
-    for (path, props) in contexts {
-        let context_type = props
-            .get("Type")
-            .and_then(|v| String::try_from(v.clone()).ok())
-            .unwrap_or_default();
-        
-        if context_type == "internet" {
-            let apn = props
-                .get("AccessPointName")
+    with_serial(async {
+        let proxy = Proxy::new(conn, "org.ofono", "/ril_0", "org.ofono.ConnectionManager").await?;
+        let contexts: Vec<(zbus::zvariant::OwnedObjectPath, HashMap<String, OwnedValue>)> =
+            proxy.call("GetContexts", &()).await?;
+
+        let mut first_internet_context: Option<String> = None;
+
+        for (path, props) in contexts {
+            let context_type = props
+                .get("Type")
                 .and_then(|v| String::try_from(v.clone()).ok())
                 .unwrap_or_default();
-            
-            // 如果配置了 APN，优先返回这个 context
-            if !apn.is_empty() {
-                return Ok(path.to_string());
-            }
-            
-            // 记录第一个 internet 类型的 context
-            if first_internet_context.is_none() {
-                first_internet_context = Some(path.to_string());
+
+            if context_type == "internet" {
+                let apn = props
+                    .get("AccessPointName")
+                    .and_then(|v| String::try_from(v.clone()).ok())
+                    .unwrap_or_default();
+
+                // 如果配置了 APN，优先返回这个 context
+                if !apn.is_empty() {
+                    return Ok(path.to_string());
+                }
+
+                // 记录第一个 internet 类型的 context
+                if first_internet_context.is_none() {
+                    first_internet_context = Some(path.to_string());
+                }
             }
         }
-    }
-    
-    // 返回第一个 internet context，如果没有则返回默认值
-    Ok(first_internet_context.unwrap_or_else(|| "/ril_0/context2".to_string()))
+
+        // 返回第一个 internet context，如果没有则返回默认值
+        Ok(first_internet_context.unwrap_or_else(|| "/ril_0/context2".to_string()))
+    }).await
 }
 
 /// 获取所有 APN Context 列表
@@ -723,46 +725,15 @@ async fn check_and_restore_data_connection(conn: &Connection) -> String {
 /// * `conn` - D-Bus 连接
 /// * `interval_secs` - 检查间隔（秒）
 pub async fn data_connection_watchdog(conn: std::sync::Arc<Connection>, interval_secs: u64) {
-    use crate::iptables::{flush_iptables, get_iptables_rule_count};
-    
+
     let mut last_data_log = String::new();
-    let mut last_iptables_action = false; // 上次是否清空了 iptables
-    
+
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
-        
-        // 1. 检查并清空 iptables 规则
-        match get_iptables_rule_count().await {
-            Ok(count) => {
-                if count.has_rules() {
-                    // 有规则，执行清空
-                    if let Err(e) = flush_iptables().await {
-                        warn!(error = %e, "Watchdog: iptables flush failed");
-                    } else {
-                        if !last_iptables_action {
-                            // 只在首次清空时打印日志
-                            info!(
-                                total = count.total(),
-                                ipv4 = count.ipv4_rules,
-                                ipv6 = count.ipv6_rules,
-                                "Watchdog: iptables flushed"
-                            );
-                        }
-                        last_iptables_action = true;
-                    }
-                } else {
-                    // 无规则，重置标志
-                    last_iptables_action = false;
-                }
-            }
-            Err(e) => {
-                warn!(error = %e, "Watchdog: iptables check failed");
-            }
-        }
-        
-        // 2. 检查并恢复数据连接
+
+        // 检查并恢复数据连接
         let result = check_and_restore_data_connection(&conn).await;
-        
+
         // 只在状态变化时打印日志，避免刷屏
         if result != last_data_log {
             info!(status = %result, "Watchdog: data connection");

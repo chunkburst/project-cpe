@@ -220,20 +220,26 @@ pub async fn start_sms_listener(conn: Connection, db: Arc<Database>, webhook: Ar
     // Create message stream
     let mut stream = MessageStream::from(&conn);
     
-    // Listen for signals
+    // Listen for signals (带指数退避的错误恢复)
+    let mut backoff_secs: u64 = 1;
     loop {
         let msg = match stream.next().await {
-            Some(Ok(msg)) => msg,
+            Some(Ok(msg)) => {
+                backoff_secs = 1; // 成功时重置退避
+                msg
+            }
             Some(Err(e)) => {
-                tracing::error!("SMS stream error: {}, restarting stream", e);
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tracing::error!("SMS stream error: {}, restarting stream in {}s", e, backoff_secs);
+                tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
                 stream = MessageStream::from(&conn);
+                backoff_secs = (backoff_secs * 2).min(60); // 最大退避 60 秒
                 continue;
             }
             None => {
-                tracing::warn!("SMS stream ended, restarting stream");
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tracing::warn!("SMS stream ended, restarting stream in {}s", backoff_secs);
+                tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
                 stream = MessageStream::from(&conn);
+                backoff_secs = (backoff_secs * 2).min(60);
                 continue;
             }
         };
@@ -290,6 +296,13 @@ lazy_static::lazy_static! {
     static ref ACTIVE_CALLS: StdMutex<HashMap<String, ActiveCall>> = StdMutex::new(HashMap::new());
 }
 
+/// 清理超过 24 小时的残留通话记录（防止 CallRemoved 信号丢失导致的内存泄漏）
+fn cleanup_stale_calls() {
+    let mut active_calls = ACTIVE_CALLS.lock().unwrap();
+    let threshold = Utc::now() - chrono::Duration::hours(24);
+    active_calls.retain(|_, call| call.start_time > threshold);
+}
+
 /// Start call status listener with call history recording and webhook support
 pub async fn start_call_listener(conn: Connection, db: Arc<Database>, webhook: Arc<WebhookSender>) -> zbus::Result<()> {
     // Subscribe to D-Bus signals via proxy
@@ -305,19 +318,25 @@ pub async fn start_call_listener(conn: Connection, db: Arc<Database>, webhook: A
     
     let mut stream = MessageStream::from(&conn);
     
+    let mut call_backoff_secs: u64 = 1;
     loop {
         let msg = match stream.next().await {
-            Some(Ok(msg)) => msg,
+            Some(Ok(msg)) => {
+                call_backoff_secs = 1; // 成功时重置退避
+                msg
+            }
             Some(Err(e)) => {
-                tracing::error!("Call stream error: {}, restarting stream", e);
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tracing::error!("Call stream error: {}, restarting stream in {}s", e, call_backoff_secs);
+                tokio::time::sleep(tokio::time::Duration::from_secs(call_backoff_secs)).await;
                 stream = MessageStream::from(&conn);
+                call_backoff_secs = (call_backoff_secs * 2).min(60); // 最大退避 60 秒
                 continue;
             }
             None => {
-                tracing::warn!("Call stream ended, restarting stream");
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tracing::warn!("Call stream ended, restarting stream in {}s", call_backoff_secs);
+                tokio::time::sleep(tokio::time::Duration::from_secs(call_backoff_secs)).await;
                 stream = MessageStream::from(&conn);
+                call_backoff_secs = (call_backoff_secs * 2).min(60);
                 continue;
             }
         };
@@ -328,6 +347,14 @@ pub async fn start_call_listener(conn: Connection, db: Arc<Database>, webhook: A
             
             match member_str {
                 "CallAdded" => {
+                    // 定期清理残留的旧条目（最多每 100 次调用执行一次）
+                    {
+                        use std::sync::atomic::{AtomicUsize, Ordering};
+                        static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+                        if CALL_COUNT.fetch_add(1, Ordering::Relaxed) % 100 == 0 {
+                            cleanup_stale_calls();
+                        }
+                    }
                     // Parse CallAdded signal: (object_path, properties)
                     if let Ok((path, props)) = msg.body().deserialize::<(zbus::zvariant::ObjectPath, std::collections::HashMap<String, OwnedValue>)>() {
                         let path_str = path.to_string();
