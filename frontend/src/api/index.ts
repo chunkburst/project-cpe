@@ -73,31 +73,89 @@ import type {
 
 // API 基础配置
 const API_BASE = '/api'
+const DEFAULT_TIMEOUT_MS = 15000 // 默认 15 秒超时
+const MAX_RETRIES = 2 // 最大重试次数
 
-// 通用请求函数
+// 带超时的 fetch
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+// 判断是否为可重试的错误（网络错误、超时、5xx 服务端错误）
+function isRetryableError(error: unknown, status?: number): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true // 超时，可重试
+  }
+  if (error instanceof TypeError) {
+    return true // 网络错误（fetch failed），可重试
+  }
+  if (status !== undefined && status >= 500) {
+    return true // 服务端错误，可重试
+  }
+  return false
+}
+
+// 通用请求函数（带超时和重试）
 async function request<T>(
   url: string,
-  options: RequestInit & { returnText?: boolean } = {}
+  options: RequestInit & { returnText?: boolean; timeoutMs?: number } = {}
 ): Promise<T> {
-  const { returnText, ...fetchOptions } = options
-  
-  const response = await fetch(`${API_BASE}${url}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
-    },
-    ...fetchOptions,
-  })
+  const { returnText, timeoutMs, ...fetchOptions } = options
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}${url}`, {
+        ...fetchOptions,
+        headers: {
+          'Content-Type': 'application/json',
+          ...fetchOptions.headers,
+        },
+        timeoutMs,
+      })
+
+      if (!response.ok) {
+        const err = new Error(`HTTP error! status: ${response.status}`)
+        if (attempt < MAX_RETRIES && isRetryableError(err, response.status)) {
+          lastError = err
+          await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
+          continue
+        }
+        throw err
+      }
+
+      if (returnText) {
+        return (await response.text()) as T
+      }
+
+      return await response.json() as T
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (attempt < MAX_RETRIES && isRetryableError(error)) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
+        continue
+      }
+      throw lastError
+    }
   }
 
-  if (returnText) {
-    return (await response.text()) as T
-  }
-
-  return await response.json() as T
+  throw lastError ?? new Error('Request failed after retries')
 }
 
 // API 类

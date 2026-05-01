@@ -239,7 +239,7 @@ async fn main() -> Result<()> {
             loop {
                 let conn = Arc::clone(&conn_clone);
                 let handle = tokio::spawn(async move {
-                    dbus::data_connection_watchdog(conn, 30).await;
+                    dbus::data_connection_watchdog(conn, 20).await;
                 });
                 match handle.await {
                     Err(e) if e.is_panic() => warn!("Watchdog panicked, restarting in 5s"),

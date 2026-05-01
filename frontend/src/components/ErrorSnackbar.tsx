@@ -53,7 +53,7 @@ export default function ErrorSnackbar({ error, onClose }: ErrorSnackbarProps) {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
-          severity="error"
+          severity="warning"
           variant="filled"
           onClose={handleSnackbarClose}
           action={
@@ -77,7 +77,11 @@ export default function ErrorSnackbar({ error, onClose }: ErrorSnackbarProps) {
           }
           sx={{ minWidth: 300 }}
         >
-          请求失败
+          {error?.includes('AbortError') || error?.includes('timeout')
+            ? '请求超时，正在重试...'
+            : error?.includes('NetworkError') || error?.includes('fetch')
+              ? '网络连接异常'
+              : '数据加载失败'}
         </Alert>
       </Snackbar>
 

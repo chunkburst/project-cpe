@@ -1,13 +1,3 @@
-/*
- * @Author: 1orz cloudorzi@gmail.com
- * @Date: 2025-12-10 10:16:54
- * @LastEditors: 1orz cloudorzi@gmail.com
- * @LastEditTime: 2025-12-13 12:44:28
- * @FilePath: /udx710-backend/frontend/src/pages/Dashboard/components/QuickControls.tsx
- * @Description: 
- * 
- * Copyright (c) 2025 by 1orz, All Rights Reserved. 
- */
 import { Box, Card, CardContent, Typography, Stack, Switch, Chip } from '@mui/material'
 import { NetworkCheck, FlightTakeoff, TravelExplore } from '@mui/icons-material'
 import type { AirplaneModeResponse, RoamingResponse } from '@/api/types'
@@ -35,47 +25,98 @@ export function QuickControls({
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
           快捷控制
         </Typography>
-        <Stack spacing={2}>
+        <Stack spacing={1.5}>
           {/* 数据连接 */}
           <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
-              <NetworkCheck color={dataStatus ? 'success' : 'disabled'} />
-              <Typography variant="body2">数据连接</Typography>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Box
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: dataStatus ? 'success.main' : 'action.disabledBackground',
+                  color: dataStatus ? '#fff' : 'text.disabled',
+                }}
+              >
+                <NetworkCheck fontSize="small" />
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight={600}>数据连接</Typography>
+                <Typography variant="caption" color={dataStatus ? 'success.main' : 'text.disabled'}>
+                  {dataStatus ? '已开启' : '已关闭'}
+                </Typography>
+              </Box>
             </Box>
-            <Switch
-              checked={dataStatus}
-              onChange={onToggleData}
-              color="success"
-              size="small"
-            />
+            <Switch checked={dataStatus} onChange={onToggleData} color="success" />
           </Box>
+
           {/* 漫游数据 */}
           <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
-              <TravelExplore color={roaming?.roaming_allowed ? 'info' : 'disabled'} />
-              <Typography variant="body2">漫游数据</Typography>
-              {roaming?.is_roaming && (
-                <Chip label="漫游中" size="small" color="warning" sx={{ height: 18, fontSize: '0.65rem' }} />
-              )}
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Box
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: roaming?.roaming_allowed ? 'info.main' : 'action.disabledBackground',
+                  color: roaming?.roaming_allowed ? '#fff' : 'text.disabled',
+                }}
+              >
+                <TravelExplore fontSize="small" />
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight={600}>漫游数据</Typography>
+                <Box display="flex" alignItems="center" gap={0.5}>
+                  <Typography variant="caption" color={roaming?.roaming_allowed ? 'info.main' : 'text.disabled'}>
+                    {roaming?.roaming_allowed ? '已开启' : '已关闭'}
+                  </Typography>
+                  {roaming?.is_roaming && (
+                    <Chip label="漫游中" size="small" color="warning" sx={{ height: 16, fontSize: '0.6rem' }} />
+                  )}
+                </Box>
+              </Box>
             </Box>
             <Switch
               checked={roaming?.roaming_allowed || false}
               onChange={onToggleRoaming}
               color="info"
-              size="small"
             />
           </Box>
+
           {/* 飞行模式 */}
           <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
-              <FlightTakeoff color={airplaneMode?.enabled ? 'warning' : 'disabled'} />
-              <Typography variant="body2">飞行模式</Typography>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Box
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: airplaneMode?.enabled ? 'warning.main' : 'action.disabledBackground',
+                  color: airplaneMode?.enabled ? '#fff' : 'text.disabled',
+                }}
+              >
+                <FlightTakeoff fontSize="small" />
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight={600}>飞行模式</Typography>
+                <Typography variant="caption" color={airplaneMode?.enabled ? 'warning.main' : 'text.disabled'}>
+                  {airplaneMode?.enabled ? '已开启' : '已关闭'}
+                </Typography>
+              </Box>
             </Box>
             <Switch
               checked={airplaneMode?.enabled || false}
               onChange={onToggleAirplaneMode}
               color="warning"
-              size="small"
             />
           </Box>
         </Stack>

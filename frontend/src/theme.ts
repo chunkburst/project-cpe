@@ -1,56 +1,121 @@
-/*
- * @Author: 1orz cloudorzi@gmail.com
- * @Date: 2025-11-22 10:30:41
- * @LastEditors: 1orz cloudorzi@gmail.com
- * @LastEditTime: 2025-12-13 12:45:20
- * @FilePath: /udx710-backend/frontend/src/theme.ts
- * @Description: 
- * 
- * Copyright (c) 2025 by 1orz, All Rights Reserved. 
- */
-import { createTheme } from '@mui/material/styles'
+import { createTheme, type ThemeOptions } from '@mui/material/styles'
 
-// 创建自定义主题
+// 共享的组件覆写
+const sharedComponents: ThemeOptions['components'] = {
+  MuiCard: {
+    defaultProps: { elevation: 0 },
+    styleOverrides: {
+      root: {
+        borderRadius: 14,
+        border: '1px solid',
+        borderColor: 'transparent',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+      },
+    },
+  },
+  MuiButton: {
+    defaultProps: { disableElevation: true },
+    styleOverrides: {
+      root: {
+        borderRadius: 10,
+        textTransform: 'none',
+        fontWeight: 600,
+        padding: '8px 16px',
+      },
+    },
+  },
+  MuiPaper: {
+    styleOverrides: {
+      root: { borderRadius: 14 },
+    },
+  },
+  MuiChip: {
+    styleOverrides: {
+      root: {
+        borderRadius: 8,
+        fontWeight: 600,
+        fontSize: '0.75rem',
+      },
+    },
+  },
+  MuiSwitch: {
+    styleOverrides: {
+      root: {
+        padding: 8,
+      },
+      thumb: {
+        borderRadius: 10,
+      },
+      track: {
+        borderRadius: 10,
+      },
+    },
+  },
+  MuiListItemButton: {
+    styleOverrides: {
+      root: {
+        borderRadius: 10,
+        margin: '2px 8px',
+      },
+    },
+  },
+  MuiAppBar: {
+    defaultProps: { elevation: 0 },
+    styleOverrides: {
+      root: {
+        borderBottom: '1px solid',
+      },
+    },
+  },
+}
+
+// 浅色主题
 export const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
+      main: '#2563eb',
+      light: '#3b82f6',
+      dark: '#1d4ed8',
     },
     secondary: {
-      main: '#dc004e',
-      light: '#f50057',
-      dark: '#c51162',
+      main: '#7c3aed',
+      light: '#8b5cf6',
+      dark: '#6d28d9',
     },
     success: {
-      main: '#2e7d32',
-      light: '#4caf50',
-      dark: '#1b5e20',
+      main: '#059669',
+      light: '#10b981',
+      dark: '#047857',
     },
     warning: {
-      main: '#ed6c02',
-      light: '#ff9800',
-      dark: '#e65100',
+      main: '#d97706',
+      light: '#f59e0b',
+      dark: '#b45309',
     },
     error: {
-      main: '#d32f2f',
-      light: '#ef5350',
-      dark: '#c62828',
+      main: '#dc2626',
+      light: '#ef4444',
+      dark: '#b91c1c',
     },
     info: {
-      main: '#0288d1',
-      light: '#03a9f4',
-      dark: '#01579b',
+      main: '#0891b2',
+      light: '#06b6d4',
+      dark: '#0e7490',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#f8fafc',
       paper: '#ffffff',
     },
+    text: {
+      primary: '#0f172a',
+      secondary: '#64748b',
+    },
+    divider: '#e2e8f0',
   },
   typography: {
     fontFamily: [
+      'Inter',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
@@ -59,79 +124,97 @@ export const theme = createTheme({
       'Arial',
       'sans-serif',
     ].join(','),
-    h4: {
-      fontWeight: 600,
-    },
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
+    h4: { fontWeight: 700, letterSpacing: '-0.02em' },
+    h5: { fontWeight: 700, letterSpacing: '-0.01em' },
+    h6: { fontWeight: 600 },
+    subtitle2: { fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.02em', textTransform: 'uppercase' },
   },
-  components: {
-    MuiCard: {
-      defaultProps: {
-        elevation: 2,
-      },
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiButton: {
-      defaultProps: {
-        disableElevation: true,
-      },
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-          fontWeight: 500,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          fontWeight: 500,
-        },
-      },
-    },
-  },
-  shape: {
-    borderRadius: 8,
-  },
+  shape: { borderRadius: 10 },
+  components: sharedComponents,
 })
 
 // 深色主题
 export const darkTheme = createTheme({
-  ...theme,
   palette: {
     mode: 'dark',
     primary: {
-      main: '#90caf9',
-      light: '#e3f2fd',
-      dark: '#42a5f5',
+      main: '#60a5fa',
+      light: '#93bbfd',
+      dark: '#3b82f6',
     },
     secondary: {
-      main: '#f48fb1',
-      light: '#f8bbd0',
-      dark: '#ec407a',
+      main: '#a78bfa',
+      light: '#c4b5fd',
+      dark: '#8b5cf6',
+    },
+    success: {
+      main: '#34d399',
+      light: '#6ee7b7',
+      dark: '#10b981',
+    },
+    warning: {
+      main: '#fbbf24',
+      light: '#fcd34d',
+      dark: '#f59e0b',
+    },
+    error: {
+      main: '#f87171',
+      light: '#fca5a5',
+      dark: '#ef4444',
+    },
+    info: {
+      main: '#22d3ee',
+      light: '#67e8f9',
+      dark: '#06b6d4',
     },
     background: {
-      default: '#121212',
-      paper: '#1e1e1e',
+      default: '#0f172a',
+      paper: '#1e293b',
+    },
+    text: {
+      primary: '#f1f5f9',
+      secondary: '#94a3b8',
+    },
+    divider: '#334155',
+  },
+  typography: {
+    fontFamily: [
+      'Inter',
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
+      'sans-serif',
+    ].join(','),
+    h4: { fontWeight: 700, letterSpacing: '-0.02em' },
+    h5: { fontWeight: 700, letterSpacing: '-0.01em' },
+    h6: { fontWeight: 600 },
+    subtitle2: { fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.02em', textTransform: 'uppercase' },
+  },
+  shape: { borderRadius: 10 },
+  components: {
+    ...sharedComponents,
+    MuiAppBar: {
+      defaultProps: { elevation: 0 },
+      styleOverrides: {
+        root: {
+          borderBottom: '1px solid',
+          borderColor: 'rgba(148, 163, 184, 0.12)',
+        },
+      },
+    },
+    MuiCard: {
+      defaultProps: { elevation: 0 },
+      styleOverrides: {
+        root: {
+          borderRadius: 14,
+          border: '1px solid',
+          borderColor: 'rgba(148, 163, 184, 0.08)',
+          backgroundImage: 'none',
+        },
+      },
     },
   },
 })
-

@@ -628,9 +628,23 @@ async fn auto_configure_apn(conn: &Connection, context_path: &str) -> Result<Str
     Ok(format!("Auto-configured APN: {} ({})", apn, protocol))
 }
 
+/// 快速 ping 检测（发送 1 个包，2 秒超时）
+fn quick_ping(host: &str) -> bool {
+    use std::process::Command;
+    match Command::new("ping")
+        .args(["-c", "1", "-W", "2", host])
+        .output()
+    {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
+
 /// 检查并恢复数据连接
 ///
-/// 这个函数被 watchdog 调用，检查数据连接状态并在需要时恢复
+/// 这个函数被 watchdog 调用，检查数据连接状态并在需要时恢复。
+/// 除了检查 ofono 的 Active 属性，还会通过 ping 验证实际的 IP 连通性。
+/// 如果 ofono 显示 Active 但 ping 不通，会强制断开并重新激活数据连接。
 ///
 /// # Arguments
 /// * `conn` - D-Bus 连接
@@ -651,18 +665,18 @@ async fn check_and_restore_data_connection(conn: &Connection) -> String {
         }
         Err(_) => return "Network proxy unavailable".to_string(),
     };
-    
+
     // 网络未注册时不尝试恢复
     if net_status != "registered" && net_status != "roaming" {
         return format!("Waiting for network (status: {})", net_status);
     }
-    
+
     // 2. 查找 internet context
     let context_path = match find_internet_context(conn).await {
         Ok(path) => path,
         Err(e) => return format!("No internet context: {}", e),
     };
-    
+
     // 3. 获取 context 属性
     let proxy = match ConnectionContextProxy::builder(conn)
         .path(context_path.as_str())
@@ -674,22 +688,22 @@ async fn check_and_restore_data_connection(conn: &Connection) -> String {
         },
         Err(e) => return format!("Context path error: {}", e),
     };
-    
+
     let props = match proxy.get_properties().await {
         Ok(p) => p,
         Err(e) => return format!("Get properties error: {}", e),
     };
-    
+
     let apn = props
         .get("AccessPointName")
         .and_then(|v| String::try_from(v.clone()).ok())
         .unwrap_or_default();
-    
+
     let active = props
         .get("Active")
         .and_then(|v| bool::try_from(v.clone()).ok())
         .unwrap_or(false);
-    
+
     // 4. 如果 APN 为空，尝试自动配置
     if apn.is_empty() {
         match auto_configure_apn(conn, &context_path).await {
@@ -703,7 +717,7 @@ async fn check_and_restore_data_connection(conn: &Connection) -> String {
             Err(e) => return format!("APN not configured: {}", e),
         }
     }
-    
+
     // 5. 如果连接未激活，尝试激活
     if !active {
         match set_data_connection(conn, true).await {
@@ -711,8 +725,28 @@ async fn check_and_restore_data_connection(conn: &Connection) -> String {
             Err(e) => return format!("Activation failed: {}", e),
         }
     }
-    
-    // 6. 连接正常
+
+    // 6. 连接在 ofono 层面显示 Active，但需要验证实际 IP 连通性
+    // 使用 ping 检查真实网络连通性，避免 ofono 状态与实际不符的情况
+    let ping_ok = quick_ping("223.5.5.5");
+    if !ping_ok {
+        warn!(
+            context = %context_path,
+            apn = %apn,
+            "Watchdog: ofono shows Active but ping failed, forcing reconnect"
+        );
+        // 强制断开并重新连接
+        if let Err(e) = set_data_connection(conn, false).await {
+            return format!("Deactivate for reconnect failed: {}", e);
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        match set_data_connection(conn, true).await {
+            Ok(_) => return format!("Reconnected after ping failure (APN: {})", apn),
+            Err(e) => return format!("Reconnect after ping failure failed: {}", e),
+        }
+    }
+
+    // 7. 连接正常（ofono Active + ping 可达）
     format!("Connected (APN: {})", apn)
 }
 

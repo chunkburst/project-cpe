@@ -110,11 +110,12 @@ export function useDashboardData(refreshInterval: number, refreshKey: number) {
     setSpeedHistory(newHistory)
   }, [])
 
-  // 加载数据
+  // 加载数据 - 每个 API 调用独立容错，单个失败不影响其他数据
   const loadData = useCallback(async () => {
     setError(null)
     try {
-      const [deviceRes, simRes, statsRes, networkRes, dataRes, cellsRes, qosRes, airplaneModeRes] = await Promise.all([
+      // 核心数据 - 独立处理每个结果
+      const coreResults = await Promise.allSettled([
         api.getDeviceInfo(),
         api.getSimInfo(),
         api.getSystemStats(),
@@ -125,32 +126,39 @@ export function useDashboardData(refreshInterval: number, refreshKey: number) {
         api.getAirplaneMode(),
       ])
 
-      if (deviceRes.data) setDeviceInfo(deviceRes.data)
-      if (simRes.data) setSimInfo(simRes.data)
-      if (statsRes.data) {
+      // 安全提取数据
+      const [deviceRes, simRes, statsRes, networkRes, dataRes, cellsRes, qosRes, airplaneModeRes] =
+        coreResults.map(r => (r.status === 'fulfilled' ? r.value : null))
+
+      if (deviceRes?.data) setDeviceInfo(deviceRes.data)
+      if (simRes?.data) setSimInfo(simRes.data)
+      if (statsRes?.data) {
         setSystemStats(statsRes.data)
         updateSpeedHistory(statsRes.data)
       }
-      if (networkRes.data) setNetworkInfo(networkRes.data)
-      if (dataRes.data) setDataStatus(dataRes.data.active)
-      if (cellsRes.data) setCellsInfo(cellsRes.data)
-      if (qosRes.data) setQosInfo(qosRes.data)
-      if (airplaneModeRes.data) setAirplaneMode(airplaneModeRes.data)
+      if (networkRes?.data) setNetworkInfo(networkRes.data)
+      if (dataRes?.data) setDataStatus(dataRes.data.active)
+      if (cellsRes?.data) setCellsInfo(cellsRes.data)
+      if (qosRes?.data) setQosInfo(qosRes.data)
+      if (airplaneModeRes?.data) setAirplaneMode(airplaneModeRes.data)
 
-      // 加载扩展数据
+      // 扩展数据 - 独立容错
       try {
-        const [imsRes, connectivityRes, roamingRes] = await Promise.all([
+        const extResults = await Promise.allSettled([
           api.getImsStatus(),
           api.getConnectivity(),
           api.getRoamingStatus(),
         ])
-        if (imsRes.data) setImsStatus(imsRes.data)
-        if (connectivityRes.data) setConnectivity(connectivityRes.data)
-        if (roamingRes.data) setRoaming(roamingRes.data)
+        const [imsRes, connectivityRes, roamingRes] =
+          extResults.map(r => (r.status === 'fulfilled' ? r.value : null))
+        if (imsRes?.data) setImsStatus(imsRes.data)
+        if (connectivityRes?.data) setConnectivity(connectivityRes.data)
+        if (roamingRes?.data) setRoaming(roamingRes.data)
       } catch {
-        console.warn('Extended data not fully available')
+        // 扩展数据加载失败不阻塞主流程
       }
     } catch (err) {
+      // 仅在所有核心调用完全失败时才报错
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setInitialLoading(false)

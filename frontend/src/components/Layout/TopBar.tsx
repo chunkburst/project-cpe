@@ -18,7 +18,7 @@
  * 
  * Copyright (c) 2025 by 1orz, All Rights Reserved. 
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   AppBar,
   Toolbar,
@@ -30,6 +30,7 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
+  Tooltip,
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -59,6 +60,7 @@ export default function TopBar({
   const { triggerRefresh } = useRefreshInterval()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [refreshMenuAnchor, setRefreshMenuAnchor] = useState<null | HTMLElement>(null)
+  const [backendOnline, setBackendOnline] = useState(true)
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -90,6 +92,24 @@ export default function TopBar({
     handleMenuClose()
   }
 
+  // 轻量级后端健康检查（每 10 秒）
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
+        const res = await fetch('/api/health', { signal: controller.signal })
+        clearTimeout(timeout)
+        setBackendOnline(res.ok)
+      } catch {
+        setBackendOnline(false)
+      }
+    }
+    check()
+    const interval = setInterval(check, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
   const getRefreshLabel = () => {
     if (refreshInterval === 0) return '手动'
     if (refreshInterval === 1000) return '1秒'
@@ -102,90 +122,103 @@ export default function TopBar({
   return (
     <AppBar
       position="fixed"
+      color="inherit"
       sx={{
         width: { sm: `calc(100% - ${drawerWidth}px)` },
         ml: { sm: `${drawerWidth}px` },
+        bgcolor: 'background.paper',
+        borderColor: 'divider',
       }}
     >
-      <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
-        {/* 菜单折叠按钮 - 所有屏幕尺寸都可见 */}
+      <Toolbar sx={{ minHeight: { xs: 56, sm: 64 }, px: { xs: 2, sm: 3 } }}>
         <IconButton
           color="inherit"
           aria-label="切换侧边栏"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: 2 }}
+          sx={{ mr: 1.5, color: 'text.secondary' }}
         >
           <MenuIcon />
         </IconButton>
 
-        {/* 标题 */}
         <Typography
           variant="h6"
           noWrap
           component="div"
           sx={{
             flexGrow: 1,
-            fontSize: { xs: '1rem', sm: '1.25rem' },
+            fontSize: { xs: '1rem', sm: '1.1rem' },
+            fontWeight: 600,
+            color: 'text.primary',
           }}
         >
           控制面板
         </Typography>
 
-        {/* 右侧按钮组 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
-          {/* 刷新按钮 - 始终显示 */}
-          <IconButton
-            color="inherit"
-            onClick={handleRefresh}
-            title="刷新页面"
-            sx={{ display: { xs: 'inline-flex', sm: 'inline-flex' } }}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* 后端连接状态 */}
+          <Tooltip title={backendOnline ? '后端已连接' : '后端断开'}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: backendOnline ? 'success.main' : 'error.main',
+                  boxShadow: backendOnline
+                    ? '0 0 6px rgba(16, 185, 129, 0.5)'
+                    : '0 0 6px rgba(239, 68, 68, 0.5)',
+                }}
+              />
+            </Box>
+          </Tooltip>
+
+          {/* 刷新频率快捷显示 */}
+          <Box
+            onClick={handleRefreshMenuOpen}
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+              alignItems: 'center',
+              gap: 0.5,
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              cursor: 'pointer',
+              mr: 0.5,
+              '&:hover': { bgcolor: 'action.selected' },
+            }}
           >
+            <SpeedIcon fontSize="small" sx={{ color: 'text.secondary', fontSize: 18 }} />
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
+              {getRefreshLabel()}
+            </Typography>
+          </Box>
+
+          <IconButton color="inherit" onClick={handleRefresh} title="刷新页面" sx={{ color: 'text.secondary' }}>
             <RefreshIcon />
           </IconButton>
 
-          {/* 更多选项按钮 - 折叠其他功能 */}
-          <IconButton
-            color="inherit"
-            onClick={handleMenuOpen}
-            title="更多选项"
-            sx={{ display: { xs: 'inline-flex', sm: 'inline-flex' } }}
-          >
+          <IconButton color="inherit" onClick={handleMenuOpen} title="更多选项" sx={{ color: 'text.secondary' }}>
             <MoreVertIcon />
           </IconButton>
         </Box>
 
-        {/* 更多选项菜单 */}
         <Menu
           anchorEl={anchorEl}
           open={Boolean(anchorEl)}
           onClose={handleMenuClose}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          PaperProps={{
-            sx: {
-              minWidth: 200,
-              mt: 1,
-            },
-          }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { minWidth: 200, mt: 1 } } }}
         >
-          {/* 主题切换 */}
           <MenuItem onClick={handleThemeToggle}>
             <ListItemIcon>
               {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
             </ListItemIcon>
             <ListItemText>{mode === 'dark' ? '浅色模式' : '深色模式'}</ListItemText>
           </MenuItem>
-
           <Divider />
-
-          {/* 刷新频率 */}
           <MenuItem onClick={handleRefreshMenuOpen}>
             <ListItemIcon>
               <SpeedIcon fontSize="small" />
@@ -198,53 +231,29 @@ export default function TopBar({
           </MenuItem>
         </Menu>
 
-        {/* 刷新频率子菜单 */}
         <Menu
           anchorEl={refreshMenuAnchor}
           open={Boolean(refreshMenuAnchor)}
           onClose={handleRefreshMenuClose}
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'left',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          PaperProps={{
-            sx: {
-              minWidth: 150,
-            },
-          }}
+          anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { minWidth: 160 } } }}
         >
-          <MenuItem
-            selected={refreshInterval === 1000}
-            onClick={() => handleRefreshIntervalChange(1000)}
-          >
-            1秒/次
-          </MenuItem>
-          <MenuItem
-            selected={refreshInterval === 3000}
-            onClick={() => handleRefreshIntervalChange(3000)}
-          >
-            3秒/次
-          </MenuItem>
-          <MenuItem
-            selected={refreshInterval === 5000}
-            onClick={() => handleRefreshIntervalChange(5000)}
-          >
-            5秒/次
-          </MenuItem>
-          <MenuItem
-            selected={refreshInterval === 10000}
-            onClick={() => handleRefreshIntervalChange(10000)}
-          >
-            10秒/次
-          </MenuItem>
+          {[1000, 3000, 5000, 10000].map(ms => (
+            <MenuItem
+              key={ms}
+              selected={refreshInterval === ms}
+              onClick={() => handleRefreshIntervalChange(ms)}
+              sx={{ borderRadius: 1, mx: 0.5 }}
+            >
+              {ms / 1000}秒/次
+            </MenuItem>
+          ))}
           <Divider />
           <MenuItem
             selected={refreshInterval === 0}
             onClick={() => handleRefreshIntervalChange(0)}
+            sx={{ borderRadius: 1, mx: 0.5 }}
           >
             手动刷新
           </MenuItem>

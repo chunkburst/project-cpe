@@ -69,33 +69,63 @@ export default function Sidebar({ drawerWidth, mobileOpen, desktopOpen, onClose,
 
   const drawer = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Toolbar>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6" noWrap component="div" fontWeight={600}>
-            UDX710
+      <Toolbar sx={{ px: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 34,
+              height: 34,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: '0.85rem',
+            }}
+          >
+            U
+          </Box>
+          <Typography variant="h6" noWrap fontWeight={700} fontSize="1.1rem">
+            CPE Panel
           </Typography>
         </Box>
       </Toolbar>
       <Divider />
-      <List sx={{ flexGrow: 1 }}>
+      <List sx={{ flexGrow: 1, px: 0.5, pt: 1 }}>
         {menuItems.map((item) => {
           const IconComponent = item.icon
+          const isActive = location.pathname === item.path
           return (
             <ListItem key={item.path} disablePadding>
               <ListItemButton
-                selected={location.pathname === item.path}
+                selected={isActive}
                 onClick={() => handleNavigation(item.path)}
+                sx={{
+                  borderRadius: 2,
+                  mb: 0.25,
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.main',
+                    color: '#fff',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                    '& .MuiListItemIcon-root': { color: '#fff' },
+                  },
+                }}
               >
-                <ListItemIcon>
-                  <IconComponent />
+                <ListItemIcon sx={{ minWidth: 38 }}>
+                  <IconComponent fontSize="small" />
                 </ListItemIcon>
-                <ListItemText primary={item.label} />
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: isActive ? 600 : 400 }}
+                />
               </ListItemButton>
             </ListItem>
           )
         })}
       </List>
-      {/* Footer with copyright */}
+      {/* Footer */}
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
         <Link
           href="https://github.com/1orz/project-cpe"
@@ -108,9 +138,7 @@ export default function Sidebar({ drawerWidth, mobileOpen, desktopOpen, onClose,
             color: 'text.secondary',
             textDecoration: 'none',
             fontSize: '0.75rem',
-            '&:hover': {
-              color: 'primary.main',
-            },
+            '&:hover': { color: 'primary.main' },
           }}
         >
           <GitHubIcon sx={{ fontSize: 16 }} />
@@ -120,9 +148,6 @@ export default function Sidebar({ drawerWidth, mobileOpen, desktopOpen, onClose,
         </Link>
         <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
           v{__APP_VERSION__} ({__GIT_BRANCH__}/{__GIT_COMMIT__})
-        </Typography>
-        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
-          Copyright 2025 1orz
         </Typography>
       </Box>
     </Box>
