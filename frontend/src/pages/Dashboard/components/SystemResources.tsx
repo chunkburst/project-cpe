@@ -9,8 +9,8 @@
  * Copyright (c) 2025 by 1orz, All Rights Reserved. 
  */
 import { useState } from 'react'
-import { Box, Card, CardContent, Typography, Stack, LinearProgress, Chip, Tooltip, Collapse, IconButton } from '@mui/material'
-import { Speed, Memory, Storage, Thermostat, Usb, Info, ExpandMore, ExpandLess } from '@mui/icons-material'
+import { Box, Card, CardContent, Typography, Stack, LinearProgress, Chip, Collapse, IconButton } from '@mui/material'
+import { Speed, Memory, Storage, Thermostat, Usb, ExpandMore, ExpandLess } from '@mui/icons-material'
 import { formatBytes, getCpuColor, getMemoryColor, getTempColor } from '../utils'
 import type { SystemStatsResponse } from '@/api/types'
 

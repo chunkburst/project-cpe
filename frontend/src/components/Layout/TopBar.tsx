@@ -105,7 +105,7 @@ export default function TopBar({
         setBackendOnline(false)
       }
     }
-    check()
+    void check()
     const interval = setInterval(check, 10000)
     return () => clearInterval(interval)
   }, [])
